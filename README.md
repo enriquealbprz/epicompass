@@ -50,6 +50,7 @@ pip install tqdm dask pandas pyarrow scipy seaborn matplotlib statsmodels
 ./datadownload.sh
 ```
 or else, download it manually from this link: <https://personal.broadinstitute.org/cboix/epimap/ChromHMM/observed_aux_18_hg38/CALLS/>
+
 4. (OPTIONAL) You can download the metadata table in .xlsx format from this link:
 <https://personal.broadinstitute.org/cboix/epimap/metadata/Imputation_Metadata.xlsx>
 
