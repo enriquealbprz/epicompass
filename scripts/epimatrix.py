@@ -133,7 +133,7 @@ def load_state_map(statemap_path):
 # Parse arguments
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("dir", help="Path to directory", type=str)
+    parser.add_argument("dir", help="Path to the directory containing the raw data", type=str)
     parser.add_argument("entry", help="Chromosome region(s), e.g., 'chr7:140000-150000, chr10:100000-150000'", type=str)
     parser.add_argument("window", help="Window size", type=int)
     parser.add_argument("--classmap", help="Path to sample classification .tsv file", required=True, type=str)
@@ -156,6 +156,33 @@ def main():
     # Load sample and state classes
     sample_class_map = load_sample_classes(args.classmap)
     state_map = load_state_map(args.statemap) if args.statemap else None
+
+    # Load original color map
+    original_state_color_map = get_state_color_map()
+
+    # Map reduced state colors if statemap is provided
+    if state_map:
+        def get_reduced_state_color_map(state_map, original_state_colors):
+            category_colors = {}
+            category_to_mnemonics = {}
+
+            # Agrupar Mnemonic por categoría reducida
+            for mnemonic, category in state_map.items():
+                category_to_mnemonics.setdefault(category, []).append(mnemonic)
+            
+            for category, mnemonics in category_to_mnemonics.items():
+                colors = [original_state_colors.get(m, "#D3D3D3") for m in mnemonics if m in original_state_colors]
+                if colors:
+                    # Usamos el color del primer Mnemonic que aparece en la categoría
+                    category_colors[category] = colors[0]
+                else:
+                    category_colors[category] = "#D3D3D3"  # Color por defecto
+
+            return category_colors
+
+        reduced_state_color_map = get_reduced_state_color_map(state_map, original_state_color_map)
+    else:
+        reduced_state_color_map = original_state_color_map
 
     # Scanning sample files
     gz_files = glob.glob(os.path.join(args.dir, "BSS*_18_CALLS_segments.bed.gz"))
@@ -190,6 +217,7 @@ def main():
     for class_label, samples in class_grouped_results.items():
         for sample_id, states in samples.items():
             for state in states:
+                # Usa la categoría reducida si está definido
                 state_key = state_map.get(state.mnemonic, state.mnemonic) if state_map else state.mnemonic
                 state_count_matrix[state_key][class_label] += 1
 
@@ -209,7 +237,8 @@ def main():
     if args.plot:
         print(f"\nGenerating state visualization plot at: {args.plot}")
 
-        state_color_map = get_state_color_map()
+        # Usa el mapa de color reducido si se pasó statemap
+        state_color_map = reduced_state_color_map
         default_color = "#D3D3D3"
 
         segment_label_list = [f"{chrom}:{start}-{end}" for chrom, start, end in segment_list]
@@ -224,7 +253,12 @@ def main():
                         (s for s in states if s.chr == chrom and s.firstbase == start and s.lastbase == end),
                         None
                     )
-                    state = matched.mnemonic if matched else "NA"
+                    # Si statemap está, mapea el mnemonic a categoría
+                    if state_map:
+                        state = state_map.get(matched.mnemonic, "NA") if matched else "NA"
+                    else:
+                        state = matched.mnemonic if matched else "NA"
+                    
                     color = state_color_map.get(state, default_color)
                     row_colors.append(color)
                 color_matrix.append(row_colors)
@@ -239,11 +273,10 @@ def main():
         print(f"Total segments per sample: {len(segment_list)}")
 
         # Plot
-        # Compute figure size, capped to avoid exceeding backend limits
         max_pixels = 65500  # Under the 2^16 limit to be safe
-        dpi = 100
-        height_per_sample = 0.3
-        base_height = len(sample_labels) * height_per_sample + 2
+        dpi = 300
+        height_per_sample = 0.15
+        base_height = len(sample_labels) * height_per_sample + 1.5
         max_height_inches = max_pixels / dpi
         fig_height = min(base_height, max_height_inches)
         fig_width = max(12, len(segment_list) * 0.3)

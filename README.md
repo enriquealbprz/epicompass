@@ -83,6 +83,23 @@ epicompass/
 
 For more details, refer to the [EpiCompass Documentation](docs/EpiCompass%20Documentation.pdf).
 
+### Example
+```bash
+# Create a sample classification map, for example, sorting by tissue:
+python3 classmap.py tissue --output sort_by_tissue.tsv
+
+# Execute epimatrix.py to generate the chromatin state
+# matrix and the state plot:
+python3 epimatrix.py hg38_datasets chr7:140000-150000,chr10:100000-150000
+5000 --classmap sort_by_tissue.tsv --statemap statemap.tsv --output
+cancer_matrix.tsv --plot cancer_plot.png
+
+# Execute hypertest.py to perform a hypergeometric test on the previously
+# generated matrix and save test as a TSV file and heatmap as a PNG file:
+python3 hypertest.py cancer_matrix.tsv --output htest.tsv --plot
+--plot-output cancer_heatmap.png --rangecap 10 --fdr
+```
+
 ### License
 This project is licensed under the MIT License.
 

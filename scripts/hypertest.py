@@ -5,8 +5,9 @@ import pandas as pd
 import numpy as np
 from scipy.stats import hypergeom
 import seaborn as sns
-import matplotlib.pyplot as plt
 from statsmodels.stats.multitest import multipletests
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 from matplotlib.colors import to_rgb
 
 # Define hypergeometric test function
@@ -26,7 +27,7 @@ def main():
     parser.add_argument("--output", help="Output file for raw p-values (.tsv)", default=None)
     parser.add_argument("--plot", action="store_true", help="Display heatmap of -log10(p-values)")
     parser.add_argument("--plot-output", help="Optional file to save the heatmap (e.g., 'plot.png')")
-    parser.add_argument("--rangecap", help="Upper limit for -log(p-value) in the heatmap color scale; cells containing higher values will appear with the same color", default=15)
+    parser.add_argument("--rangecap", type=float, help="Upper limit for -log(p-value) in the heatmap color scale; cells containing higher values will appear with the same color", default=15)
     parser.add_argument("--fdr", action="store_true", help="Apply FDR correction (Benjamini-Hochberg)")
 
     if len(sys.argv) == 1:
@@ -69,12 +70,12 @@ def main():
 
         min_pval = 1e-300  # avoid log10(0)
         log_p = -np.log10(pivot.clip(lower=min_pval))  # Contains the values that will be shown in the cells
+        log_p_capped = log_p.clip(upper=args.rangecap)
 
         # Dynamic range to show color scale in significant p-value cells.
         min_display = 0
         max_display = args.rangecap
-        norm = plt.Normalize(vmin=min_display, vmax=max_display)
-
+        norm = plt.Normalize(vmin=0, vmax=float(args.rangecap))
 
         # Create figure
         fig = plt.figure(figsize=(15, 8))
@@ -100,31 +101,32 @@ def main():
         # Main heatmap
         ax = fig.add_subplot(111, zorder=1)
         cmap = plt.get_cmap("viridis")
-        norm = plt.Normalize(log_p.min().min(), log_p.max().max())
+        norm = mcolors.Normalize(vmin=0, vmax=float(args.rangecap))
 
         heatmap = sns.heatmap(
-            log_p,
+            log_p_capped,
             cmap=cmap,
             annot=False,
             fmt=".1f",
             linewidths=0.5,
             cbar_kws={"label": f"-log10({value_column})"},
             ax=ax,
-            norm=norm  # Aplica el rango de color entre 1.3 y 10
+            norm=norm
         )
 
         # Manual annotation with contrast-aware text
         for y in range(log_p.shape[0]):
             for x in range(log_p.shape[1]):
-                val = log_p.iloc[y, x]
-                if pd.isna(val):
+                true_val = log_p.iloc[y, x]
+                capped_val = log_p_capped.iloc[y, x]
+                if pd.isna(true_val):
                     text = "NaN"
                     text_color = "black"
                 else:
-                    bg_color = cmap(norm(val))[:3]
+                    bg_color = cmap(norm(capped_val))[:3]
                     brightness = 0.299 * bg_color[0] + 0.587 * bg_color[1] + 0.114 * bg_color[2]
                     text_color = 'black' if brightness > 0.6 else 'white'
-                    text = f"{val:.1f}"
+                    text = f"{true_val:.1f}"
                 ax.text(x + 0.5, y + 0.5, text, ha='center', va='center', color=text_color)
 
         # Y-axis label colors based on chromatin state
